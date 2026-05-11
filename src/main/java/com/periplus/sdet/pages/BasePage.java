@@ -1,6 +1,8 @@
 package com.periplus.sdet.pages;
 
 import com.periplus.sdet.driver.DriverFactory;
+import org.openqa.selenium.By;
+import org.openqa.selenium.ElementClickInterceptedException;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
@@ -90,6 +92,27 @@ public abstract class BasePage {
         wait.until(ExpectedConditions.urlContains(urlPart));
     }
 
+    /**
+     * Waits until the current URL no longer contains the provided fragment.
+     *
+     * @param urlPart fragment that should disappear from the current URL
+     */
+    protected void waitForUrlNotContains(String urlPart) {
+        wait.until(ExpectedConditions.not(ExpectedConditions.urlContains(urlPart)));
+    }
+
+    /**
+     * Waits for any preloader overlay to become invisible, with graceful
+     * degradation if no preloader is found.
+     */
+    protected void dismissPreloaderIfPresent() {
+        try {
+            waitForPreloaderToDisappear();
+        } catch (Exception e) {
+            log.debug("No preloader found or already invisible; proceeding.");
+        }
+    }
+
     // ── Interaction helpers ────────────────────────────────────────────────
 
     /**
@@ -112,8 +135,24 @@ public abstract class BasePage {
     protected void click(WebElement element) {
         WebElement el = waitForClickable(element);
         scrollIntoView(el);
-        el.click();
+        try {
+            el.click();
+        } catch (ElementClickInterceptedException e) {
+            // Retry once after overlays/preloaders clear
+            waitForPreloaderToDisappear();
+            el = waitForClickable(element);
+            scrollIntoView(el);
+            el.click();
+        }
         log.debug("Clicked element: {}.", element);
+    }
+
+    private void waitForPreloaderToDisappear() {
+        if (!driver.findElements(By.cssSelector("div.preloader, .preloader")).isEmpty()) {
+            wait.until(ExpectedConditions.invisibilityOfElementLocated(
+                    By.cssSelector("div.preloader, .preloader")));
+            log.debug("Preloader has been dismissed.");
+        }
     }
 
     /**

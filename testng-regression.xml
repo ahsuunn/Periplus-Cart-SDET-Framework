@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "http://testng.org/testng-1.0.dtd">
+
+<!--
+    TestNG Suite Descriptor — Periplus Shopping Cart Regression Suite
+    Run with: mvn -DsuiteXmlFile=testng-regression.xml test
+-->
+<suite name="Periplus Cart Regression Suite" verbose="1" thread-count="1">
+
+    <parameter name="browser" value="chrome"/>
+
+    <listeners>
+        <listener class-name="org.testng.reporters.SuiteHTMLReporter"/>
+    </listeners>
+
+    <test name="Add to Cart — Full Regression Suite">
+        <groups>
+            <run>
+                <include name="regression"/>
+                <include name="cart"/>
+                <include name="security"/>
+                <include name="data-integrity"/>
+            </run>
+        </groups>
+        <classes>
+            <class name="com.periplus.sdet.tests.AddToCartTest"/>
+        </classes>
+    </test>
+
+</suite>

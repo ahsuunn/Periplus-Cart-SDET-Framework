@@ -1,12 +1,11 @@
 package com.periplus.sdet.pages;
 
-import org.openqa.selenium.By;
 import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.FindBy;
-import org.openqa.selenium.support.ui.ExpectedConditions;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * {@code SearchResultsPage} models the search-results listing page on Periplus.
@@ -37,16 +36,10 @@ public class SearchResultsPage extends BasePage {
     // ── Locators ───────────────────────────────────────────────────────────
 
     /**
-     * Container that holds all product cards in the grid.
+     * Visible product title links rendered on the results page.
      */
-    @FindBy(css = ".product-items")
-    private WebElement productGrid;
-
-    /**
-     * All individual product card elements within the results grid.
-     */
-    @FindBy(css = ".single-product")
-    private List<WebElement> productCards;
+    @FindBy(css = "h3 a[href*='/p/']")
+    private List<WebElement> productTitleLinks;
 
     /** "No results" message rendered when the search returns 0 products. */
     @FindBy(css = ".no-results, .alert-warning")
@@ -61,8 +54,9 @@ public class SearchResultsPage extends BasePage {
      * @return the count of products returned by the search
      */
     public int getProductCount() {
-        wait.until(ExpectedConditions.visibilityOfAllElements(productCards));
-        int count = productCards.size();
+        int count = (int) productTitleLinks.stream()
+                .filter(WebElement::isDisplayed)
+                .count();
         log.info("Search results page shows {} product(s).", count);
         return count;
     }
@@ -76,8 +70,7 @@ public class SearchResultsPage extends BasePage {
      * @return the product title string
      */
     public String getFirstProductTitle() {
-        WebElement firstCard = getFirstProductCard();
-        WebElement titleEl = firstCard.findElement(By.cssSelector("h3 a"));
+        WebElement titleEl = getFirstVisibleProductTitleLink();
         String title = titleEl.getText().trim();
         log.info("First product title resolved as: '{}'", title);
         return title;
@@ -94,9 +87,16 @@ public class SearchResultsPage extends BasePage {
      */
     public ProductPage clickFirstProductTitle() {
         log.info("Clicking on first product to navigate to its detail page.");
-        WebElement firstCard  = getFirstProductCard();
-        WebElement productLink = firstCard.findElement(By.cssSelector("h3 a"));
-        click(productLink);
+        // Wait for any preloader overlay to disappear
+        dismissPreloaderIfPresent();
+        WebElement link = getFirstVisibleProductTitleLink();
+        String href = link.getAttribute("href");
+        if (href != null && !href.isBlank()) {
+            log.info("Navigating directly to product URL: {}", href);
+            navigateTo(href);
+        } else {
+            click(link);
+        }
         return new ProductPage();
     }
 
@@ -116,14 +116,15 @@ public class SearchResultsPage extends BasePage {
     // ── Private helpers ────────────────────────────────────────────────────
 
     /**
-     * Ensures the product grid is loaded and returns the first card element.
+     * Returns the first visible product title link on the page.
      *
-     * @return the first product card WebElement
-     * @throws org.openqa.selenium.TimeoutException if no products appear
+     * @return the first visible product title link
+     * @throws org.openqa.selenium.TimeoutException if no visible product links appear
      */
-    private WebElement getFirstProductCard() {
-        wait.until(ExpectedConditions.visibilityOf(productGrid));
-        wait.until(ExpectedConditions.visibilityOfAllElements(productCards));
-        return productCards.get(0);
+    private WebElement getFirstVisibleProductTitleLink() {
+        return wait.until(driver -> productTitleLinks.stream()
+                .filter(WebElement::isDisplayed)
+                .findFirst()
+                .orElse(null));
     }
 }

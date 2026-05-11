@@ -1,5 +1,6 @@
 package com.periplus.sdet.pages;
 
+import com.periplus.sdet.config.ConfigManager;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.FindBy;
@@ -35,8 +36,7 @@ public class ProductPage extends BasePage {
     // ── Locators ───────────────────────────────────────────────────────────
 
     /** The main product title / book name displayed on the detail page. */
-    @FindBy(css = "h1.product-name, h1[itemprop='name'], h1.page-title, "
-            + "div.product-name h1, h1")
+    @FindBy(css = "h2, h1")
     private WebElement productTitle;
 
     /** The "Add to Cart" CTA button on the product detail page. */
@@ -52,9 +52,12 @@ public class ProductPage extends BasePage {
             + "p.special-price .price, div.price-box span.price")
     private WebElement productPrice;
 
+    /** The cart link in the navigation bar. */
+    @FindBy(css = "a[href*='/checkout/cart']")
+    private WebElement cartLink;
+
     /** Success / confirmation message or modal after adding to cart. */
-    @FindBy(css = ".success-message, .cart-success, "
-            + "div[class*='success'], .toast-success, .alert-success")
+    @FindBy(css = ".ti-check, .modal-text ")
     private WebElement successMessage;
 
     // ── Actions ────────────────────────────────────────────────────────────
@@ -114,13 +117,16 @@ public class ProductPage extends BasePage {
      */
     public ProductPage addToCart() {
         log.info("Clicking 'Add to Cart' button.");
+        dismissPreloaderIfPresent();
+        int initialCount = readCartCount();
         click(addToCartButton);
 
         // Wait for either a success toast or the cart counter to update
         try {
             wait.until(ExpectedConditions.or(
                     ExpectedConditions.visibilityOf(successMessage),
-                    ExpectedConditions.urlContains("cart")
+                    ExpectedConditions.urlContains("cart"),
+                    driver -> readCartCount() > initialCount
             ));
             log.info("Product successfully added to cart (confirmation signal received).");
         } catch (Exception e) {
@@ -137,10 +143,32 @@ public class ProductPage extends BasePage {
      */
     public CartPage proceedToCart() {
         log.info("Navigating to the cart page.");
-        WebElement cartLink = driver.findElement(
-                By.cssSelector("a[href*='cart'], a.cart-icon, .cart-link"));
-        click(cartLink);
+        dismissPreloaderIfPresent();
+        try {
+            click(cartLink);
+        } catch (Exception e) {
+            log.warn("Could not click cart link directly, trying to navigate via URL.");
+            String baseUrl = ConfigManager.getInstance().getBaseUrl().replaceAll("/+$", "");
+            navigateTo(baseUrl + "/checkout/cart");
+        }
+        waitForUrlContains("cart");
         return new CartPage();
+    }
+
+    @FindBy(id = "cart_total")
+    private WebElement cartBadge;
+    private int readCartCount() {
+        try {
+            String rawText = waitForVisible(cartBadge).getText().trim();
+            if (rawText.isEmpty()) {
+            return 0;
+        }
+        
+            return Integer.parseInt(rawText);
+        } catch (Exception e) {
+            System.err.println("Failed to parse cart count. Raw text was: " + cartBadge.getText());
+            return 0;
+        }
     }
 
     /**

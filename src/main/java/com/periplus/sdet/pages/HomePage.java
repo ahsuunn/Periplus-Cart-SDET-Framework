@@ -86,7 +86,8 @@ public class HomePage extends BasePage {
      */
     public HomePage open(String baseUrl) {
         navigateTo(baseUrl);
-        waitForTitleContains("Periplus");
+        waitForUrlContains("periplus.com");
+        waitForVisible(searchInput);
         dismissOverlaysIfPresent();
         log.info("Homepage loaded successfully.");
         return this;
@@ -98,9 +99,10 @@ public class HomePage extends BasePage {
      * @return a new {@link LoginPage} instance
      */
     public LoginPage goToLoginPage() {
-        log.info("Navigating to the login page via top-nav link.");
-        click(signInLink);
-        waitForUrlContains("account");
+        String loginUrl = getCurrentUrl().replaceAll("/+$", "") + "/account/Login";
+        log.info("Navigating to the login page: {}", loginUrl);
+        navigateTo(loginUrl);
+        waitForUrlContains("account/Login");
         return new LoginPage();
     }
 

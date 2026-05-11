@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "http://testng.org/testng-1.0.dtd">
+
+<!--
+    TestNG Suite Descriptor — Periplus Shopping Cart Smoke Suite
+    Run with: mvn -DsuiteXmlFile=testng-smoke.xml test
+-->
+<suite name="Periplus Cart Smoke Suite" verbose="1" thread-count="1">
+
+    <parameter name="browser" value="chrome"/>
+
+    <listeners>
+        <listener class-name="org.testng.reporters.SuiteHTMLReporter"/>
+    </listeners>
+
+    <test name="Add to Cart — Smoke Tests">
+        <groups>
+            <run>
+                <include name="smoke"/>
+            </run>
+        </groups>
+        <classes>
+            <class name="com.periplus.sdet.tests.AddToCartTest">
+                <methods>
+                    <include name="testHappyPathAddSingleProductToCart"/>
+                </methods>
+            </class>
+        </classes>
+    </test>
+
+</suite>

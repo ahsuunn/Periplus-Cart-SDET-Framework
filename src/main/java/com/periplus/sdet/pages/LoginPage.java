@@ -6,20 +6,20 @@ import org.openqa.selenium.support.FindBy;
 /**
  * {@code LoginPage} models the Periplus account login page.
  *
- * <p>URL pattern: {@code https://www.periplus.com/account/login}</p>
+ * <p>URL pattern: {@code https://www.periplus.com/account/Login}</p>
  *
  * <p><b>TC Factors:</b>
  * <ul>
  *   <li>Requires no active session cookie — a pre-existing valid session will
  *       redirect directly to the account dashboard.</li>
- *   <li>The page may redirect to {@code /account/login?redirect=...} if the
+ *   <li>The page may redirect to {@code /account/Login?redirect=...} if the
  *       user attempted to access a protected resource first.</li>
  * </ul>
  * </p>
  *
  * <p><b>Dynamic Interactions:</b>
  * <ul>
- *   <li>On submit, the browser issues a {@code POST /account/login} request;
+ *   <li>On submit, the browser issues a {@code POST /account/Login} request;
  *       a successful authentication sets a session cookie and redirects to
  *       the homepage or the original requested URL.</li>
  *   <li>A failed attempt returns an inline error message — no page reload
@@ -61,6 +61,7 @@ public class LoginPage extends BasePage {
      */
     public LoginPage enterEmail(String email) {
         log.info("Entering email: {}", email);
+        waitForVisible(emailInput);
         typeInto(emailInput, email);
         return this;
     }
@@ -73,6 +74,7 @@ public class LoginPage extends BasePage {
      */
     public LoginPage enterPassword(String password) {
         log.info("Entering password: [REDACTED]");
+        waitForVisible(passwordInput);
         typeInto(passwordInput, password);
         return this;
     }
@@ -87,9 +89,10 @@ public class LoginPage extends BasePage {
      */
     public HomePage clickLogin() {
         log.info("Submitting login form.");
+        waitForVisible(loginButton);
         click(loginButton);
         // Wait for navigation away from the login page
-        waitForUrlContains("periplus.com");
+        waitForUrlNotContains("account/Login");
         return new HomePage();
     }
 

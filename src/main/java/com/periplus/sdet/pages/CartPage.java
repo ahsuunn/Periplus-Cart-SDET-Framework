@@ -44,24 +44,25 @@ public class CartPage extends BasePage {
 
     // ── Locators ───────────────────────────────────────────────────────────
 
+    private static final By CART_ITEM_ROW = By.cssSelector(
+            "div.col-lg-10.col-9 a[href*='checkout/cart?remove']");
+    private static final By EMPTY_CART = By.cssSelector(
+            ".cart-empty, p[class*='empty'], div[class*='empty-cart'], div.cart-is-empty");
     /** The cart items table / container that holds all line items. */
     @FindBy(css = "table.data-table, "
             + "form[action*='cart'], "
             + "div.cart-items, "
             + "ul.cart-list, "
-            + "#shopping-cart-table")
+            + "#shopping-cart-table, "
+            + "#content, "
+            + ".shopping-cart, "
+            + ".cart-content, "
+            + ".checkout-cart")
     private WebElement cartTable;
 
     /** All product row elements within the cart. */
-    @FindBy(css = "tr.item-info, .cart-item, div.cart-product")
+    @FindBy(css = "div.col-lg-10.col-9, tr.item-info, .cart-item, div.cart-product")
     private List<WebElement> cartItems;
-
-    /** Empty cart message — rendered when there are no line items. */
-    @FindBy(css = ".cart-empty, "
-            + "p[class*='empty'], "
-            + "div[class*='empty-cart'], "
-            + "div.cart-is-empty")
-    private WebElement emptyCartMessage;
 
     /** Cart subtotal amount element. */
     @FindBy(css = "div.cart-total td:nth-child(2)")
@@ -85,8 +86,9 @@ public class CartPage extends BasePage {
     public CartPage waitForCartToLoad() {
         log.info("Waiting for cart page content to load.");
         wait.until(ExpectedConditions.or(
-                ExpectedConditions.visibilityOf(cartTable),
-                ExpectedConditions.visibilityOf(emptyCartMessage)
+                ExpectedConditions.visibilityOfElementLocated(CART_ITEM_ROW),
+                ExpectedConditions.visibilityOfElementLocated(EMPTY_CART),
+                ExpectedConditions.visibilityOf(cartTable)
         ));
         return this;
     }
@@ -103,7 +105,7 @@ public class CartPage extends BasePage {
      */
     public int getItemCount() {
         wait.until(ExpectedConditions.visibilityOf(cartTable));
-        int count = cartItems.size();
+        int count = getLineItems().size();
         log.info("Cart contains {} line item(s).", count);
         return count;
     }
@@ -120,12 +122,13 @@ public class CartPage extends BasePage {
      */
     public boolean containsItemWithTitle(String productTitle) {
         wait.until(ExpectedConditions.visibilityOf(cartTable));
-        boolean found = cartItems.stream().anyMatch(item -> {
+        boolean found = getLineItems().stream().anyMatch(item -> {
             boolean matches = item.findElements(By.cssSelector(
                     "td.product-name a, "
                     + ".product-name, "
                     + "span[class*='product-name'], "
-                    + "a[class*='product-link']"
+                    + "a[class*='product-link'], "
+                    + "a[href*='/p/']"
             )).stream()
               .findFirst()
               .map(el -> el.getText().trim())
@@ -148,9 +151,9 @@ public class CartPage extends BasePage {
      * @return the quantity as an integer, or {@code -1} if the item is not found
      */
     public int getItemQuantity(String productTitle) {
-        for (WebElement item : cartItems) {
+        for (WebElement item : getLineItems()) {
             String nameText = item.findElements(By.cssSelector(
-                    "td.product-name a, .product-name, a[class*='product-link']"
+                    "td.product-name a, .product-name, a[class*='product-link'], a[href*='/p/']"
             )).stream()
               .findFirst()
               .map(el -> el.getText().trim())
@@ -158,7 +161,7 @@ public class CartPage extends BasePage {
 
             if (nameText.toLowerCase().contains(productTitle.toLowerCase())) {
                 String qtyText = item.findElements(By.cssSelector(
-                        "input[id^='qty_'], input.input-number"
+                        "input[id^='qty_'], input[name^='quantity['], input.input-number"
                 )).stream()
                   .findFirst()
                   .map(el -> {
@@ -201,12 +204,20 @@ public class CartPage extends BasePage {
      */
     public boolean isCartEmpty() {
         try {
-            boolean empty = emptyCartMessage.isDisplayed();
+            boolean empty = !driver.findElements(EMPTY_CART).isEmpty()
+                    && driver.findElement(EMPTY_CART).isDisplayed();
             log.info("Cart empty state: {}", empty);
             return empty;
         } catch (Exception e) {
             return false;
         }
+    }
+
+    private List<WebElement> getLineItems() {
+        return cartItems.stream()
+                .filter(item -> !item.findElements(By.cssSelector(
+                        "a[href*='checkout/cart?remove']")).isEmpty())
+                .toList();
     }
 
     /**
