@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "http://testng.org/testng-1.0.dtd">
+
+<!--
+    TestNG Suite Descriptor — Periplus Shopping Cart Test Suite
+    ────────────────────────────────────────────────────────────
+    Run with: mvn test
+    Report:   target/reports/test-report-<timestamp>.html
+-->
+<suite name="Periplus Cart Regression Suite" verbose="1" thread-count="1">
+
+    <!-- Global suite-level parameters (overridden by config.properties) -->
+    <parameter name="browser" value="chrome"/>
+
+    <listeners>
+        <!-- TestNG built-in listener for console output -->
+        <listener class-name="org.testng.reporters.SuiteHTMLReporter"/>
+    </listeners>
+
+    <!-- ── Add-to-Cart Feature Group ──────────────────────────────────── -->
+    <test name="Add to Cart — Smoke Tests">
+        <groups>
+            <run>
+                <include name="smoke"/>
+            </run>
+        </groups>
+        <classes>
+            <class name="com.periplus.sdet.tests.AddToCartTest">
+                <methods>
+                    <include name="testHappyPathAddSingleProductToCart"/>
+                </methods>
+            </class>
+        </classes>
+    </test>
+
+    <test name="Add to Cart — Full Regression Suite">
+        <groups>
+            <run>
+                <include name="regression"/>
+                <include name="cart"/>
+                <include name="security"/>
+                <include name="data-integrity"/>
+            </run>
+        </groups>
+        <classes>
+            <class name="com.periplus.sdet.tests.AddToCartTest"/>
+        </classes>
+    </test>
+
+</suite>

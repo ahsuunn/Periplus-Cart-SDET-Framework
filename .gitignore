@@ -1,0 +1,29 @@
+# Build Artifacts
+target/
+bin/
+
+# IDE specific files
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+.project
+.classpath
+.settings/
+.factorypath
+
+# Test Execution Output
+test-output/
+test-reports/
+reports/
+logs/
+*.log
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# Environment/Secrets (if you ever use them)
+.env
+config.local.properties
