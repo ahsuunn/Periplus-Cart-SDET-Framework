@@ -60,6 +60,14 @@ public class ProductPage extends BasePage {
     @FindBy(css = ".ti-check, .modal-text ")
     private WebElement successMessage;
 
+    /** "Notify Me" or "Out of Stock" element. */
+    @FindBy(css = "button[class*='notify'], .out-of-stock, .availability.out-of-stock")
+    private WebElement notifyMeButton;
+
+    /** Out-of-stock alert modal / overlay. */
+    @FindBy(css = ".ti-alert.modal-alert, .ti-alert, .modal-alert, .ti-modal, .modal-backdrop, [class*='alert-modal']")
+    private WebElement outOfStockAlert;
+
     // ── Actions ────────────────────────────────────────────────────────────
 
     /**
@@ -121,17 +129,17 @@ public class ProductPage extends BasePage {
         int initialCount = readCartCount();
         click(addToCartButton);
 
-        // Wait for either a success toast or the cart counter to update
+        // Wait for a signal: Success, Out-of-Stock Alert, URL change, or Count change
         try {
-            wait.until(ExpectedConditions.or(
-                    ExpectedConditions.visibilityOf(successMessage),
-                    ExpectedConditions.urlContains("cart"),
-                    driver -> readCartCount() > initialCount
-            ));
-            log.info("Product successfully added to cart (confirmation signal received).");
+            wait.until(d -> 
+                isOutOfStockAlertVisible() || 
+                (driver.findElements(By.cssSelector(".ti-check, .modal-text")).stream().anyMatch(WebElement::isDisplayed)) ||
+                driver.getCurrentUrl().contains("cart") || 
+                readCartCount() > initialCount
+            );
+            log.info("Signal received after 'Add to Cart' click.");
         } catch (Exception e) {
-            // Graceful degradation — some site versions silently update the cart
-            log.warn("No explicit success signal detected; proceeding assuming cart was updated.");
+            log.warn("No explicit signal detected within timeout.");
         }
         return this;
     }
@@ -172,17 +180,37 @@ public class ProductPage extends BasePage {
     }
 
     /**
-     * Returns {@code true} when the "Add to Cart" button is present and enabled,
-     * indicating the product is in stock.
+     * Returns {@code true} when the "Add to Cart" button is present, enabled,
+     * and not functionally blocked by an "Out of Stock" state.
+     *
+     * <p>Note: On some versions of Periplus, the button remains enabled but
+     * triggers an alert modal (e.g., .ti-alert) instead of adding to cart.</p>
      *
      * @return {@code true} if the product can be added to the cart
      */
     public boolean isAddToCartAvailable() {
         try {
+            // 1. If 'Notify Me' or 'Out of Stock' labels are visible, it's not available
+            if (isNotifyMeDisplayed()) {
+                log.info("Product is NOT available: 'Notify Me' button or OOS label detected.");
+                return false;
+            }
+
+            // 2. Check the main button
             WebElement btn = waitForVisible(addToCartButton);
-            return btn.isEnabled();
+            if (!btn.isDisplayed() || !btn.isEnabled()) {
+                return false;
+            }
+
+            // 3. Check for specific CSS indicators that imply it's out of stock even if enabled
+            String classAttr = btn.getAttribute("class");
+            if (classAttr != null && (classAttr.contains("disabled") || classAttr.contains("oos"))) {
+                return false;
+            }
+
+            return true;
         } catch (Exception e) {
-            log.warn("'Add to Cart' button not found — product may be out of stock.");
+            log.warn("'Add to Cart' button check failed — product may be out of stock: {}", e.getMessage());
             return false;
         }
     }
@@ -197,6 +225,53 @@ public class ProductPage extends BasePage {
             return waitForVisible(successMessage).getText().trim();
         } catch (Exception e) {
             return "";
+        }
+    }
+
+    /**
+     * Returns {@code true} if the "Notify Me" button or "Out of Stock" label is displayed.
+     *
+     * @return {@code true} if product is out of stock
+     */
+    /**
+     * Returns {@code true} if the "Notify Me" button or "Out of Stock" label is displayed.
+     *
+     * @return {@code true} if product is out of stock
+     */
+    public boolean isNotifyMeDisplayed() {
+        try {
+            return notifyMeButton.isDisplayed();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Returns {@code true} if the out-of-stock alert modal is displayed.
+     *
+     * @return {@code true} if the alert is visible
+     */
+    /**
+     * Returns {@code true} if an out-of-stock alert or modal is present.
+     * Uses both Selenium and JavaScript checks to handle transient or animated overlays.
+     *
+     * @return {@code true} if the alert is detected
+     */
+    public boolean isOutOfStockAlertVisible() {
+        try {
+            // 1. Standard Selenium check with a short wait
+            if (driver.findElements(By.cssSelector(".ti-alert, .modal-alert, .ti-modal, [class*='alert']")).stream()
+                    .anyMatch(WebElement::isDisplayed)) {
+                return true;
+            }
+
+            // 2. JavaScript fallback: Check if any element with these classes exists and is potentially visible
+            String script = "return Array.from(document.querySelectorAll('.ti-alert, .modal-alert, .ti-modal'))" +
+                            ".some(el => window.getComputedStyle(el).display !== 'none' && el.offsetHeight > 0);";
+            return (Boolean) ((org.openqa.selenium.JavascriptExecutor) driver).executeScript(script);
+
+        } catch (Exception e) {
+            return false;
         }
     }
 }

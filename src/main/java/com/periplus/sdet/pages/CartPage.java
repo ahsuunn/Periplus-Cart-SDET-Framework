@@ -86,6 +86,22 @@ public class CartPage extends BasePage {
     @FindBy(css = ".content")
     private WebElement emptyCartMessage;
 
+    /** Coupon code input field. */
+    @FindBy(id = "coupon_code")
+    private WebElement couponInput;
+
+    /** Apply coupon button. */
+    @FindBy(css = "button[value='Apply Coupon'], button.btn-apply-coupon, .discount-form button")
+    private WebElement applyCouponButton;
+
+    /** Coupon validation / success message. */
+    @FindBy(css = ".messages .success-msg, .messages .error-msg, .alert, .message-error, .message-success")
+    private WebElement couponMessage;
+
+    /** UI validation message (e.g., "Insufficient Stock"). */
+    @FindBy(css = ".item-msg, .error-msg, .message-notice")
+    private WebElement validationMessage;
+
     // ── Actions ────────────────────────────────────────────────────────────
 
 
@@ -228,6 +244,18 @@ public int parsePriceToInteger(String rawPriceText) {
      * @return {@code this} for fluent chaining
      */
     public CartPage changeQuantity(String productTitle, int qty) {
+        return changeQuantity(productTitle, String.valueOf(qty));
+    }
+
+    /**
+     * Updates the quantity for a specific product using a string value.
+     * Useful for testing invalid inputs (non-numeric, negative).
+     *
+     * @param productTitle the product to update
+     * @param qty          the new quantity string
+     * @return {@code this} for fluent chaining
+     */
+    public CartPage changeQuantity(String productTitle, String qty) {
         log.info("Changing quantity of '{}' to {}.", productTitle, qty);
         WebElement item = findItemRowByTitle(productTitle);
         if (item == null) {
@@ -239,19 +267,78 @@ public int parsePriceToInteger(String rawPriceText) {
         ));
         
         try {
-            forceTypeInto(qtyInput, String.valueOf(qty));
+            forceTypeInto(qtyInput, qty);
             qtyInput.sendKeys(org.openqa.selenium.Keys.ENTER);
         } catch (Exception e) {
-            log.warn("Caught unexpected alert during quantity change: {}", e.getMessage());
+            log.warn("Caught unexpected alert or error during quantity change: {}", e.getMessage());
             handleAlertIfPresent();
-            // Retry once after alert is dismissed
-            forceTypeInto(qtyInput, String.valueOf(qty));
-            qtyInput.sendKeys(org.openqa.selenium.Keys.ENTER);
+            // Retry once if needed
+            try {
+                forceTypeInto(qtyInput, qty);
+                qtyInput.sendKeys(org.openqa.selenium.Keys.ENTER);
+            } catch (Exception ignored) {}
         }
 
         // Wait for preloader and then wait for the subtotal to reflect changes
         dismissPreloaderIfPresent();
         return this;
+    }
+
+    /**
+     * Returns the current value in the quantity input field for a specific item.
+     *
+     * @param productTitle the product title
+     * @return the value as a string
+     */
+    public String getQuantityInputValue(String productTitle) {
+        WebElement item = findItemRowByTitle(productTitle);
+        if (item == null) return "";
+        WebElement qtyInput = item.findElement(By.cssSelector(
+                "input[id^='qty_'], input[name^='quantity['], input.input-number"
+        ));
+        return qtyInput.getAttribute("value");
+    }
+
+    /**
+     * Applies a coupon code and waits for the message to appear.
+     *
+     * @param code the coupon code
+     * @return {@code this} for fluent chaining
+     */
+    public CartPage applyCoupon(String code) {
+        log.info("Applying coupon code: {}", code);
+        scrollIntoView(couponInput);
+        typeInto(couponInput, code);
+        click(applyCouponButton);
+        dismissPreloaderIfPresent();
+        return this;
+    }
+
+    /**
+     * Returns the text of the coupon status message (success or error).
+     *
+     * @return the message text
+     */
+    public String getCouponMessage() {
+        try {
+            return waitForVisible(couponMessage).getText().trim();
+        } catch (Exception e) {
+            log.warn("Coupon message not found.");
+            return "";
+        }
+    }
+
+    /**
+     * Returns the text of any UI validation message (e.g., inventory warnings).
+     *
+     * @return the validation message text
+     */
+    public String getValidationMessage() {
+        try {
+            return waitForVisible(validationMessage).getText().trim();
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     /**
