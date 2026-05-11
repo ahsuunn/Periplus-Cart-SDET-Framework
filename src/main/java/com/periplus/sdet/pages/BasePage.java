@@ -182,4 +182,33 @@ public abstract class BasePage {
     protected String getPageTitle() {
         return driver.getTitle();
     }
+
+    /**
+     * Accepts any open JavaScript alert if it exists.
+     */
+    protected void handleAlertIfPresent() {
+        try {
+            wait.until(ExpectedConditions.alertIsPresent());
+            String text = driver.switchTo().alert().getText();
+            log.warn("Dismissing unexpected alert: '{}'", text);
+            driver.switchTo().alert().accept();
+        } catch (Exception e) {
+            log.debug("No alert present to handle.");
+        }
+    }
+
+    /**
+     * Overwrites content of an input field using CTRL+A + Type instead of clear().
+     * This avoids validation alerts triggered by an 'empty' state.
+     *
+     * @param element the target input
+     * @param text    the text to enter
+     */
+    protected void forceTypeInto(WebElement element, String text) {
+        waitForClickable(element).click();
+        element.sendKeys(org.openqa.selenium.Keys.CONTROL + "a");
+        element.sendKeys(org.openqa.selenium.Keys.BACK_SPACE);
+        element.sendKeys(text);
+        log.debug("Force-typed '{}' into element.", text);
+    }
 }

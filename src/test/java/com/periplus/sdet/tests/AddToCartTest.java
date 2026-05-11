@@ -30,7 +30,9 @@ import com.periplus.sdet.pages.SearchResultsPage;
  *   TC-ATC-002 → testCartItemCountAfterAdd
  *   TC-ATC-003 → testCartPageIsAccessibleAfterAdd
  *   TC-ATC-004 → testProductTitleMatchInCart
- *   TC-ATC-005 → testLoginRequiredBeforeAdd  (redirect guard)
+ *   TC-ATC-005 → testMathVerificationQuantityUpdate
+ *   TC-ATC-006 → testStatePersistenceAfterRefresh
+ *   TC-ATC-007 → testTeardownEmptyState
  * </pre>
  *
  * @see com.periplus.sdet.pages.CartPage
@@ -287,5 +289,167 @@ public class AddToCartTest extends BaseTest {
                 "TC-ATC-004 FAIL: Cart does not contain item matching PDP title '"
                 + pdpTitle + "'.");
         getTest().pass("Product title '" + pdpTitle + "' matches cart line item — PASS.");
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  TC-ATC-005
+    //  Math Verification (Quantity Update)
+    // ══════════════════════════════════════════════════════════════════════
+
+    /**
+     * <b>TC-ATC-005 — Math Verification: Quantity Update & Subtotal Audit</b>
+     *
+     * <p>Verifies that updating the product quantity in the cart correctly
+     * recalculates the subtotal based on the unit price.</p>
+     *
+     * <p><b>Steps:</b>
+     * <ol>
+     *   <li>Login and search for a product.</li>
+     *   <li>Add product to cart and navigate to cart page.</li>
+     *   <li>Change quantity from 1 to 2.</li>
+     *   <li>Parse Unit Price and Subtotal from UI.</li>
+     *   <li>Assert: Subtotal == (Unit Price * 2).</li>
+     * </ol>
+     * </p>
+     *
+     * <p><b>TC Factors:</b> Dynamic subtotal recalculation · Indonesian Rupiah parsing</p>
+     * <p><b>Verification Call:</b> {@code subtotal == unitPrice * 2}</p>
+     */
+    @Test(
+        description = "TC-ATC-005: Verify math logic for subtotal after quantity update",
+        groups      = { "regression", "cart", "math" },
+        priority    = 5
+    )
+    public void testMathVerificationQuantityUpdate() {
+        getTest().info("TC-ATC-005: Verifying subtotal logic after updating quantity.");
+
+        // Login -> Search -> Add -> Go to Cart
+        HomePage homePage = new HomePage().open(config.getBaseUrl());
+        homePage = loginIfConfigured(homePage);
+        SearchResultsPage results = homePage.searchFor(config.getSearchKeyword());
+        ProductPage productPage   = results.clickFirstProductTitle();
+        String productTitle       = productPage.getProductTitle();
+        productPage.addToCart();
+        CartPage cartPage = productPage.proceedToCart();
+        cartPage.waitForCartToLoad();
+
+        // Step: Change quantity to 2
+        getTest().info("Updating quantity to 2 for '" + productTitle + "'.");
+        cartPage.changeQuantity(productTitle, 2);
+
+        // Verification: Parse prices and verify math
+        long unitPrice = cartPage.parsePriceToInteger(cartPage.getUnitPrice(productTitle));
+        long subtotal  = cartPage.parsePriceToInteger(cartPage.getSubtotal());
+
+        getTest().info("Unit Price: " + unitPrice + " | Subtotal: " + subtotal);
+        Assert.assertEquals(subtotal, unitPrice * 2,
+                "TC-ATC-005 FAIL: Subtotal (" + subtotal + ") does not match expected (" + (unitPrice * 2) + ")");
+        getTest().pass("Math verification passed: Subtotal matches Unit Price * 2.");
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  TC-ATC-006
+    //  State Persistence (Database Check)
+    // ══════════════════════════════════════════════════════════════════════
+
+    /**
+     * <b>TC-ATC-006 — State Persistence: Cart Integrity After Page Refresh</b>
+     *
+     * <p>Verifies that the cart state persists after a browser refresh,
+     * ensuring the session is correctly stored in the database or cookie.</p>
+     *
+     * <p><b>Steps:</b>
+     * <ol>
+     *   <li>Add product to cart and navigate to cart page.</li>
+     *   <li>Refresh the browser window.</li>
+     *   <li>Verify the item is still in the cart.</li>
+     * </ol>
+     * </p>
+     *
+     * <p><b>TC Factors:</b> Session persistence · DOM reload resilience</p>
+     * <p><b>Verification Call:</b> {@code cartPage.getItemCount() >= 1}</p>
+     */
+    @Test(
+        description = "TC-ATC-006: Verify cart items persist after browser refresh",
+        groups      = { "regression", "cart", "persistence" },
+        priority    = 6
+    )
+    public void testStatePersistenceAfterRefresh() {
+        getTest().info("TC-ATC-006: Verifying cart persistence after page refresh.");
+
+        HomePage homePage = new HomePage().open(config.getBaseUrl());
+        homePage = loginIfConfigured(homePage);
+        SearchResultsPage results = homePage.searchFor(config.getSearchKeyword());
+        ProductPage productPage   = results.clickFirstProductTitle();
+        String productTitle       = productPage.getProductTitle();
+        productPage.addToCart();
+        CartPage cartPage = productPage.proceedToCart();
+        cartPage.waitForCartToLoad();
+
+        // Refresh the page
+        getTest().info("Refreshing browser window.");
+        DriverFactory.getDriver().navigate().refresh();
+        cartPage.waitForCartToLoad();
+
+        // Verify item still exists
+        Assert.assertTrue(cartPage.containsItemWithTitle(productTitle),
+                "TC-ATC-006 FAIL: Product '" + productTitle + "' disappeared after refresh.");
+        Assert.assertTrue(cartPage.getItemCount() >= 1,
+                "TC-ATC-006 FAIL: Cart count should be >= 1 after refresh.");
+        getTest().pass("State persistence verified after refresh.");
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  TC-ATC-007
+    //  Teardown / Empty State (Idempotency)
+    // ══════════════════════════════════════════════════════════════════════
+
+    /**
+     * <b>TC-ATC-007 — Teardown: Cart Empty State & Badge Reset</b>
+     *
+     * <p>Verifies that removing an item from the cart correctly resets the
+     * cart count and displays the "empty cart" message.</p>
+     *
+     * <p><b>Steps:</b>
+     * <ol>
+     *   <li>Add product to cart and navigate to cart page.</li>
+     *   <li>Click "Remove" or "Trash" button.</li>
+     *   <li>Assert cart badge count returns to 0.</li>
+     *   <li>Verify "Your cart is empty" message is visible.</li>
+     * </ol>
+     * </p>
+     *
+     * <p><b>TC Factors:</b> Idempotent teardown · Badge state synchronization</p>
+     * <p><b>Verification Call:</b> {@code badgeCount == 0 && isEmptyMessageVisible}</p>
+     */
+    @Test(
+        description = "TC-ATC-007: Verify cart returns to empty state after item removal",
+        groups      = { "regression", "cart", "teardown" },
+        priority    = 7
+    )
+    public void testTeardownEmptyState() {
+        getTest().info("TC-ATC-007: Verifying cart empty state after item removal.");
+
+        HomePage homePage = new HomePage().open(config.getBaseUrl());
+        homePage = loginIfConfigured(homePage);
+        SearchResultsPage results = homePage.searchFor(config.getSearchKeyword());
+        ProductPage productPage   = results.clickFirstProductTitle();
+        String productTitle       = productPage.getProductTitle();
+        productPage.addToCart();
+        CartPage cartPage = productPage.proceedToCart();
+        cartPage.waitForCartToLoad();
+
+        // Remove the item
+        getTest().info("Removing item: " + productTitle);
+        cartPage.removeItem(productTitle);
+        
+
+        // Verify empty state
+        int badgeCount = cartPage.getCartBadgeCount();
+        Assert.assertEquals(badgeCount, 0,
+                "TC-ATC-007 FAIL: Cart badge count should be 0, but found: " + badgeCount);
+        Assert.assertTrue(cartPage.isCartEmptyMessageDisplayed(),
+                "TC-ATC-007 FAIL: 'Your cart is empty' message not displayed.");
+        getTest().pass("Cart empty state and badge reset verified.");
     }
 }
