@@ -26,6 +26,7 @@ public final class ConfigManager {
     // ── Private constructor ────────────────────────────────────────────────
 
     private ConfigManager() {
+        // 1. Load default config.properties from classpath
         try (InputStream is = getClass().getClassLoader().getResourceAsStream(CONFIG_FILE)) {
             if (is == null) {
                 throw new IllegalStateException("Cannot find " + CONFIG_FILE
@@ -35,6 +36,17 @@ public final class ConfigManager {
             log.info("Loaded configuration from '{}'.", CONFIG_FILE);
         } catch (IOException e) {
             throw new IllegalStateException("Failed to load " + CONFIG_FILE, e);
+        }
+
+        // 2. Load .env file from project root if it exists (overrides defaults)
+        java.io.File envFile = new java.io.File(".env");
+        if (envFile.exists()) {
+            try (java.io.FileInputStream fis = new java.io.FileInputStream(envFile)) {
+                props.load(fis);
+                log.info("Detected and loaded overrides from '.env'.");
+            } catch (IOException e) {
+                log.warn("Found .env file but failed to read it: {}", e.getMessage());
+            }
         }
     }
 
