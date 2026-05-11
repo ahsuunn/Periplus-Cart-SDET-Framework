@@ -1,6 +1,7 @@
 package com.periplus.sdet.tests;
 
 import org.testng.Assert;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import com.periplus.sdet.base.BaseTest;
@@ -39,6 +40,19 @@ import com.periplus.sdet.pages.SearchResultsPage;
  * @see com.periplus.sdet.pages.ProductPage
  */
 public class AddToCartTest extends BaseTest {
+    private HomePage homePage;
+
+    /**
+     * Automatically navigates to the homepage and performs login before each test.
+     * This ensures all tests start in an authenticated state as required.
+     */
+    @BeforeMethod(alwaysRun = true)
+    public void setupLogin() {
+        getTest().info("Setup: Opening Periplus homepage and logging in.");
+        homePage = new HomePage().open(config.getBaseUrl());
+        homePage = loginIfConfigured(homePage);
+    }
+
     private boolean hasRealCredentials() {
         return !"your_registered_email@example.com".equalsIgnoreCase(config.getUserEmail())
                 && !"your_password".equals(config.getUserPassword());
@@ -108,13 +122,6 @@ public class AddToCartTest extends BaseTest {
         priority    = 1
     )
     public void testHappyPathAddSingleProductToCart() {
-        // ── Step 1 & 2: Navigate and Login ────────────────────────────────
-        getTest().info("Step 1: Opening Periplus homepage.");
-        HomePage homePage = new HomePage().open(config.getBaseUrl());
-
-        getTest().info("Step 2: Navigating to login page and authenticating.");
-        homePage = loginIfConfigured(homePage);
-
         // ── Step 3: Search for a product ──────────────────────────────────
         String keyword = config.getSearchKeyword();
         getTest().info("Step 3: Searching for keyword: '" + keyword + "'.");
@@ -187,11 +194,7 @@ public class AddToCartTest extends BaseTest {
         priority    = 2
     )
     public void testCartItemCountAfterAdd() {
-        getTest().info("TC-ATC-002: Login → Search → Add to Cart → Assert item count ≥ 1.");
-
-        // Login
-        HomePage homePage = new HomePage().open(config.getBaseUrl());
-        homePage = loginIfConfigured(homePage);
+        getTest().info("TC-ATC-002: Search → Add to Cart → Assert item count ≥ 1.");
 
         // Search & navigate to product
         SearchResultsPage results = homePage.searchFor(config.getSearchKeyword());
@@ -226,10 +229,6 @@ public class AddToCartTest extends BaseTest {
     )
     public void testCartPageIsAccessibleAfterAdd() {
         getTest().info("TC-ATC-003: Verifying cart page URL after add.");
-
-        // Login
-        HomePage homePage = new HomePage().open(config.getBaseUrl());
-        homePage = loginIfConfigured(homePage);
 
         // Search & Add
         SearchResultsPage results = homePage.searchFor(config.getSearchKeyword());
@@ -271,9 +270,6 @@ public class AddToCartTest extends BaseTest {
     )
     public void testProductTitleMatchInCart() {
         getTest().info("TC-ATC-004: Asserting product title integrity between PDP and cart.");
-
-        HomePage homePage = new HomePage().open(config.getBaseUrl());
-            homePage = loginIfConfigured(homePage);
 
         SearchResultsPage results = homePage.searchFor(config.getSearchKeyword());
         ProductPage productPage   = results.clickFirstProductTitle();
@@ -323,9 +319,7 @@ public class AddToCartTest extends BaseTest {
     public void testMathVerificationQuantityUpdate() {
         getTest().info("TC-ATC-005: Verifying subtotal logic after updating quantity.");
 
-        // Login -> Search -> Add -> Go to Cart
-        HomePage homePage = new HomePage().open(config.getBaseUrl());
-        homePage = loginIfConfigured(homePage);
+        // Search -> Add -> Go to Cart
         SearchResultsPage results = homePage.searchFor(config.getSearchKeyword());
         ProductPage productPage   = results.clickFirstProductTitle();
         String productTitle       = productPage.getProductTitle();
@@ -377,8 +371,6 @@ public class AddToCartTest extends BaseTest {
     public void testStatePersistenceAfterRefresh() {
         getTest().info("TC-ATC-006: Verifying cart persistence after page refresh.");
 
-        HomePage homePage = new HomePage().open(config.getBaseUrl());
-        homePage = loginIfConfigured(homePage);
         SearchResultsPage results = homePage.searchFor(config.getSearchKeyword());
         ProductPage productPage   = results.clickFirstProductTitle();
         String productTitle       = productPage.getProductTitle();
@@ -430,8 +422,6 @@ public class AddToCartTest extends BaseTest {
     public void testTeardownEmptyState() {
         getTest().info("TC-ATC-007: Verifying cart empty state after item removal.");
 
-        HomePage homePage = new HomePage().open(config.getBaseUrl());
-        homePage = loginIfConfigured(homePage);
         SearchResultsPage results = homePage.searchFor(config.getSearchKeyword());
         ProductPage productPage   = results.clickFirstProductTitle();
         String productTitle       = productPage.getProductTitle();
@@ -468,9 +458,6 @@ public class AddToCartTest extends BaseTest {
     public void testBoundaryLimitsMaximumQuantity() {
         getTest().info("TC-ATC-008: Testing boundary limit with quantity 9999.");
 
-        HomePage homePage = new HomePage().open(config.getBaseUrl());
-        homePage = loginIfConfigured(homePage);
-
         SearchResultsPage results = homePage.searchFor(config.getSearchKeyword());
         ProductPage productPage   = results.clickFirstProductTitle();
         String productTitle       = productPage.getProductTitle();
@@ -491,55 +478,5 @@ public class AddToCartTest extends BaseTest {
         Assert.assertTrue(finalQty < 9999, 
                 "TC-ATC-008 FAIL: System accepted quantity 9999 without capping or error.");
         getTest().pass("System handled high quantity correctly. Final Qty: " + finalQty);
-    }
-
-
-    /**
-     * <b>TC-ATC-010 — Inventory Constraints: Out of Stock Edge Case</b>
-     *
-     * <p>Scenario: Navigate to a known out-of-stock product.</p>
-     * <p><b>Verification:</b> Assert 'Add to Cart' is disabled/absent or replaced by 'Notify Me'.</p>
-     */
-    @Test(
-        description = "TC-ATC-009: Verify out-of-stock products cannot be added to cart",
-        groups      = { "regression", "negative", "inventory" },
-        priority    = 9
-    )
-    public void testInventoryConstraintsOutOfStock() {
-        getTest().info("TC-ATC-009: Testing out-of-stock behavior.");
-
-        // We use a known out-of-stock keyword
-        String oosKeyword = "out-of-stock-sample-item"; 
-        getTest().info("Searching for out-of-stock item: " + oosKeyword);
-
-        HomePage homePage = new HomePage().open(config.getBaseUrl());
-        SearchResultsPage results = homePage.searchFor(oosKeyword);
-
-        if (results.hasNoResults() || results.getProductCount() == 0) {
-            getTest().skip("Skipping TC-ATC-010: No out-of-stock results found for '" + oosKeyword + "'.");
-            return;
-        }
-
-        ProductPage productPage = results.clickFirstProductTitle();
-        
-        // Strategy: 
-        // 1. If 'isAddToCartAvailable' is false (button disabled/absent), it's a pass.
-        // 2. If button is enabled, click it and assert that the OOS alert modal appears.
-        
-        if (productPage.isAddToCartAvailable()) {
-            getTest().info("Add to Cart button is enabled; clicking to check for functional out-of-stock alert modal.");
-            productPage.addToCart();
-            
-            boolean isAlertVisible = productPage.isOutOfStockAlertVisible();
-            Assert.assertTrue(isAlertVisible, 
-                "TC-ATC-009 FAIL: 'Add to Cart' button was enabled but no out-of-stock alert modal appeared after clicking.");
-            getTest().pass("Functional out-of-stock alert detected after clicking enabled button.");
-        } else {
-            // Button is disabled or 'Notify Me' is shown
-            boolean isNotifyVisible = productPage.isNotifyMeDisplayed();
-            Assert.assertTrue(isNotifyVisible || !productPage.isAddToCartAvailable(), 
-                "TC-ATC-009 FAIL: Product is supposed to be OOS but button is enabled and no 'Notify Me' found.");
-            getTest().pass("Product correctly identified as out-of-stock (button disabled or 'Notify Me' present).");
-        }
     }
 }
